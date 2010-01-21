@@ -1,0 +1,65 @@
+#!/usr/bin/env ruby
+#
+# Update Adium status with your current Toggl task
+#
+# Cyril Rohr
+
+already_tried = false
+begin
+  require "restclient"
+  require 'json'
+  require 'yaml'
+rescue LoadError => e
+  require 'rubygems'
+  retry unless already_tried 
+end
+
+config_filename = File.expand_path("~/.toggl-notifier/config.yml")
+
+
+if (File.exist?(config_filename) && File.readable?(config_filename))
+  configuration = YAML.load_file(config_filename)
+  if (!configuration.empty? && configuration["toggl"] && (configuration["toggl"].keys & ["password", "username"]).length >= 2)
+    username = configuration["toggl"]["username"]
+    password = configuration["toggl"]["password"]
+    begin
+      api = RestClient::Resource.new("http://www.toggl.com")
+      response = api["/user/login"].post({
+        :tzoffset => Time.now.gmt_offset, 
+        :user_login => username, 
+        :user_password => password, 
+        :version => "1.13.2"
+      }.to_json, :accept => "application/json", :content_type => "application/json")
+      now = Time.now.to_i*1000
+      # waiting for my patch in rest-client to be accepted, so that we can remove this non-sense
+      cookies = response.net_http_res.to_hash["set-cookie"].inject({}){|out,cookie|
+        key, *val = cookie.split(";").first.split("=")
+        out[key] = val.join("=")
+        out
+      }
+      tasks = JSON.parse api["/task/list"].post({
+        :end_date_ms => now,
+        :start_date_ms => now,
+        :version => "1.13.2"  
+      }.to_json, :cookies => cookies, :accept => "application/json", :content_type => "application/json")
+
+      current_task = tasks["content"].first
+      message = "#{configuration["toggl"]["banner"] || "toggl: "}#{current_task["description"]}"
+      if (configuration["toggl"]["detailed"])
+        message += " [#{current_task["project"]["client"]["name"]}/#{current_task["project"]["name"]}]"
+      end
+      script = 'set message to "' + message.gsub(/"/, '\\"') + "\"\n" +
+               'tell application "System Events"' + "\n" +
+               # 'if exists process "iChat" then tell application "iChat" to set the status message to message' + "\n" +
+               'if exists process "Adium" then tell application "Adium" to set status message of every account to message' + "\n" +
+               'end tell' + "\n"
+      IO.popen("osascript", "w") { |f| f.puts(script) }
+    rescue Exception => e
+      puts "#{e.class.name}: #{e.message}\n#{e.backtrace.join("\n")}"
+    end
+  else
+    puts "Bad configuration"
+  end
+else
+  puts "Cannot read configuration file: #{config_filename.inspect}"
+end

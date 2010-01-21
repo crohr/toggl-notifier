@@ -1,0 +1,5 @@
+toggl:
+  username: "TOGGL_EMAIL"
+  password: "TOGGL_PASSWORD"
+  banner: "working on "
+  detailed: true
