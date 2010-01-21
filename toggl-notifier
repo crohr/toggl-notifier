@@ -42,11 +42,17 @@ if (File.exist?(config_filename) && File.readable?(config_filename))
         :start_date_ms => now,
         :version => "1.13.2"  
       }.to_json, :cookies => cookies, :accept => "application/json", :content_type => "application/json")
+      
+      current_task = tasks["content"].detect{|task| task["duration"] < 0}
 
-      current_task = tasks["content"].first
-      message = "#{configuration["toggl"]["banner"] || "toggl: "}#{current_task["description"]}"
-      if (configuration["toggl"]["detailed"])
-        message += " [#{current_task["project"]["client"]["name"]}/#{current_task["project"]["name"]}]"
+      banner = configuration["toggl"]["banner"] || "toggl: "
+      if current_task.nil?
+        message = "#{banner}-"
+      else
+        message = "#{banner}#{current_task["description"]}"
+        if (configuration["toggl"]["detailed"])
+          message += " [#{current_task["project"]["client"]["name"]}/#{current_task["project"]["name"]}]"
+        end
       end
       script = 'set message to "' + message.gsub(/"/, '\\"') + "\"\n" +
                'tell application "System Events"' + "\n" +
