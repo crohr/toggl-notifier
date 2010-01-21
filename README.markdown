@@ -12,7 +12,7 @@
         mkdir ~/.toggl-notifier && \
         git clone git://github.com/crohr/toggl-notifier.git ~/.toggl-notifier && \
         chmod 600 ~/.toggl-notifier/config.yml && \
-        chown +x ~/.toggl-notifier/toggl-notifier
+        chmod +x ~/.toggl-notifier/toggl-notifier
 
 * Update `~/.toggl-notifier/config.yml` with your Toggl credentials
 * Add an entry to your crontab:
