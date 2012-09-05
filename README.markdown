@@ -14,7 +14,7 @@
         chmod 600 ~/.toggl-notifier/config.yml && \
         chmod +x ~/.toggl-notifier/toggl-notifier
 
-* Update `~/.toggl-notifier/config.yml` with your Toggl credentials
+* Update `~/.toggl-notifier/config.yml` with your Toggl API key found at [https://www.toggl.com/user/edit]
 * Add an entry to your crontab:
 
         crontab -e

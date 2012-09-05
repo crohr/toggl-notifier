@@ -1,5 +1,4 @@
 toggl:
-  username: "TOGGL_EMAIL"
-  password: "TOGGL_PASSWORD"
+  api_key: "TOGGL_API_KEY"
   banner: "working on "
   detailed: true

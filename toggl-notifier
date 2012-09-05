@@ -8,65 +8,59 @@ require 'logger'
 
 begin
   Timeout.timeout(20) do
-    already_tried = false
-    begin
-      require "restclient"
-      require 'json'
-      require 'yaml'
-    rescue LoadError => e
-      require 'rubygems'
-      retry unless already_tried 
-    end
+	already_tried = false
+	begin
+	  require "restclient"
+	  require 'json'
+	  require 'yaml'
+	  require 'time'
+	rescue LoadError => e
+	  require 'rubygems'
+	  retry unless already_tried
+	end
 
-    config_filename = File.expand_path("~/.toggl-notifier/config.yml")
+	config_filename = File.expand_path("~/.toggl-notifier/config.yml")
 
-    if (File.exist?(config_filename) && File.readable?(config_filename))
-      configuration = YAML.load_file(config_filename)
-      if (!configuration.empty? && configuration["toggl"] && (configuration["toggl"].keys & ["password", "username"]).length >= 2)
-        username = configuration["toggl"]["username"]
-        password = configuration["toggl"]["password"]
-        begin
-          # RestClient.log = Logger.new(STDOUT)
-          api = RestClient::Resource.new("http://www.toggl.com")
-          response = api["/user/login"].post({
-            :tzoffset => Time.now.gmt_offset, 
-            :user_login => username, 
-            :user_password => password, 
-            :version => "1.13.2"
-          }.to_json, :accept => "application/json", :content_type => "application/json")
-          now = Time.now.to_i*1000
-          
-          tasks = JSON.parse api["/task/list"].post({
-            :end_date_ms => now,
-            :start_date_ms => now-3600*1000,
-            :version => "1.13.2"  
-          }.to_json, :cookies => response.cookies, :accept => "application/json", :content_type => "application/json").body
-          
-          current_task = tasks["content"].detect{|task| task["duration"] < 0}
-          banner = configuration["toggl"]["banner"] || "toggl: "
-          if current_task.nil?
-            message = "#{banner}-"
-          else
-            message = "#{banner}#{current_task["description"]}"
-            if (configuration["toggl"]["detailed"])
-              message += " [#{current_task["project"]["client"]["name"]}/#{current_task["project"]["name"]}]"
-            end
-          end
-          script = 'set message to "' + message.gsub(/"/, '\\"') + "\"\n" +
-                   'tell application "System Events"' + "\n" +
-                   # 'if exists process "iChat" then tell application "iChat" to set the status message to message' + "\n" +
-                   'if exists process "Adium" then tell application "Adium" to set status message of every account to message' + "\n" +
-                   'end tell' + "\n"
-          IO.popen("osascript", "w") { |f| f.puts(script) }
-        rescue Exception => e
-          puts "#{e.class.name}: #{e.message}\n#{e.backtrace.join("\n")}"
-        end
-      else
-        puts "Bad configuration"
-      end
-    else
-      puts "Cannot read configuration file: #{config_filename.inspect}"
-    end
+	if (File.exist?(config_filename) && File.readable?(config_filename))
+	  configuration = YAML.load_file(config_filename)
+	  if (!configuration.empty? && configuration["toggl"] && configuration["toggl"]["api_key"].length >= 2)
+		api_key = configuration["toggl"]["api_key"]
+		begin
+		  #RestClient.log = Logger.new(STDOUT)
+		  api = RestClient::Resource.new("https://www.toggl.com/api/v6", :user => api_key, :password => 'api_token')
+
+		  end_date = Time.now.iso8601
+		  start_date = Time.at(Time.now - (3600 * 4)).iso8601
+
+		  tasks = JSON.parse api["time_entries.json?end_date="+URI.escape(end_date)+"&start_date=" + URI.escape(start_date)].get(:accept => "application/json", :content_type => "application/json").body
+		  current_task = tasks["data"].detect{|task| task["duration"] < 0}
+		  banner = configuration["toggl"]["banner"] || "toggl: "
+
+		if current_task.nil?
+			script = 'tell application "System Events"' + "\n" +
+				   'if exists process "Adium" then tell application "Adium" to go available' + "\n" +
+				   'end tell' + "\n"
+		   else
+			message = "#{banner}#{current_task["description"]}"
+			if (configuration["toggl"]["detailed"])
+			  message += " [#{current_task["project"]["name"]}]"
+			end
+			script = 'set message to "' + message.gsub(/"/, '\\"') + "\"\n" +
+				   'tell application "System Events"' + "\n" +
+				   'if exists process "Adium" then tell application "Adium" to set status message of every account to message' + "\n" +
+				   'end tell' + "\n"
+		   end
+
+		   IO.popen("osascript", "w") { |f| f.puts(script) }
+		rescue Exception => e
+		  puts "#{e.class.name}: #{e.message}\n#{e.backtrace.join("\n")}"
+		end
+	  else
+		puts "Bad configuration"
+	  end
+	else
+	  puts "Cannot read configuration file: #{config_filename.inspect}"
+	end
   end
 rescue Timeout::Error => e
   puts "#{e.message}, #{e.backtrace.join("\n")}"
